@@ -14,6 +14,7 @@ export default function AdminLayout() {
         <nav className="flex gap-1 ml-auto">
           <NavLink to="/admin/courses" className={link}>Courses</NavLink>
           <NavLink to="/admin/rounds" className={link}>Rounds</NavLink>
+          <NavLink to="/admin/stream" className={link}>Stream</NavLink>
         </nav>
       </header>
       <main className="flex-1 p-4 max-w-4xl mx-auto w-full">

@@ -57,6 +57,7 @@ export type StreamState = {
   round_id: string | null
   mode: StreamMode
   active_mux_input_id: string | null
+  override_hls_url: string | null
   current_hole: number
   current_player_id: string | null
   shot_count: number

@@ -10,7 +10,7 @@ export function useVote(operatorId: string | undefined) {
   const [countdown, setCountdown] = useState(0)
 
   useEffect(() => {
-    const votesChannel = supabase
+    const channel = supabase
       .channel('votes_realtime')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes' },
         (payload) => {
@@ -31,7 +31,7 @@ export function useVote(operatorId: string | undefined) {
         (payload) => setObjections(prev => [...prev, payload.new as VoteObjection]))
       .subscribe()
 
-    return () => { supabase.removeChannel(votesChannel) }
+    return () => { supabase.removeChannel(channel) }
   }, [])
 
   // Countdown ticker
@@ -69,10 +69,5 @@ export function useVote(operatorId: string | undefined) {
     setActiveVote(null)
   }, [operatorId])
 
-  const approveVote = useCallback(async (voteId: string) => {
-    await supabase.from('votes').update({ status: 'approved' }).eq('id', voteId)
-    setActiveVote(null)
-  }, [])
-
-  return { activeVote, objections, countdown, requestVote, objectToVote, approveVote }
+  return { activeVote, objections, countdown, requestVote, objectToVote }
 }

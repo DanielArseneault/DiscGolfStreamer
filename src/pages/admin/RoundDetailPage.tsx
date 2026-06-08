@@ -182,28 +182,28 @@ export default function RoundDetailPage() {
       {players.length > 0 && holes.length > 0 && (
         <section>
           <h2 className="text-lg font-semibold mb-3">Scorecard</h2>
-          <div className="overflow-x-auto">
-            <table className="text-sm w-full">
+          <div className="overflow-x-auto -mx-4 px-4">
+            <table className="text-sm border-separate border-spacing-0">
               <thead>
                 <tr className="text-gray-400 border-b border-gray-700">
-                  <th className="text-left pb-2 pr-3 font-medium w-32">Player</th>
+                  <th className="sticky left-0 bg-gray-900 text-left pb-2 pr-4 font-medium w-28 z-10">Player</th>
                   {holes.map(h => (
-                    <th key={h.id} className="pb-2 px-1 font-medium min-w-10 text-center">
+                    <th key={h.id} className="pb-2 px-1 font-medium w-10 text-center">
                       <div>{h.hole_number}</div>
-                      <div className="text-gray-500 font-normal">P{h.par}</div>
+                      <div className="text-gray-500 font-normal text-xs">P{h.par}</div>
                     </th>
                   ))}
-                  <th className="pb-2 pl-3 font-medium">Total</th>
+                  <th className="pb-2 pl-3 font-medium w-12 text-right">T</th>
                 </tr>
               </thead>
               <tbody>
                 {players.map(p => (
                   <tr key={p.id} className="border-b border-gray-800">
-                    <td className="py-1 pr-3 font-medium truncate max-w-32">{p.name}</td>
+                    <td className="sticky left-0 bg-gray-900 py-2 pr-4 font-medium w-28 z-10 truncate">{p.name}</td>
                     {holes.map(h => {
                       const score = p.scores.find(s => s.hole_number === h.hole_number)
                       return (
-                        <td key={h.id} className="py-1 px-1 text-center">
+                        <td key={h.id} className="py-1 px-0.5 text-center">
                           <input
                             type="number"
                             min="1"
@@ -215,7 +215,7 @@ export default function RoundDetailPage() {
                         </td>
                       )
                     })}
-                    <td className={`py-1 pl-3 font-bold ${totalScore(p) < 0 ? 'text-red-400' : totalScore(p) > 0 ? 'text-yellow-400' : 'text-gray-300'}`}>
+                    <td className={`py-1 pl-3 font-bold text-right ${totalScore(p) < 0 ? 'text-red-400' : totalScore(p) > 0 ? 'text-yellow-400' : 'text-gray-300'}`}>
                       {totalScore(p) === 0 ? 'E' : totalScore(p) > 0 ? `+${totalScore(p)}` : totalScore(p)}
                     </td>
                   </tr>

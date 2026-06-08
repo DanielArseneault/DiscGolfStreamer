@@ -42,7 +42,11 @@ export default function RoundsPage() {
   }
 
   async function handleDelete(id: string) {
-    await supabase.from('rounds').delete().eq('id', id)
+    const { error } = await supabase.from('rounds').delete().eq('id', id)
+    if (error) {
+      alert(`Could not delete round: ${error.message}`)
+      return
+    }
     setRounds(prev => prev.filter(r => r.id !== id))
   }
 

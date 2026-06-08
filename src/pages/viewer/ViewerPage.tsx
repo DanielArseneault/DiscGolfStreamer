@@ -17,7 +17,6 @@ export default function ViewerPage() {
   const [holes, setHoles] = useState<Hole[]>([])
   const [scores, setScores] = useState<Score[]>([])
 
-  // Load round data when round changes
   useEffect(() => {
     if (!state?.round_id) return
     supabase.from('players').select('*').eq('round_id', state.round_id).order('position').then(({ data }) => {
@@ -33,38 +32,42 @@ export default function ViewerPage() {
       })
   }, [state?.round_id])
 
-  // Subscribe to live score updates
   useEffect(() => {
-    if (!state?.round_id) return
+    if (!state?.round_id || players.length === 0) return
     const playerIds = players.map(p => p.id)
-    if (playerIds.length === 0) return
-
     supabase.from('scores').select('*').in('player_id', playerIds).then(({ data }) => {
       if (data) setScores(data)
     })
-
     const channel = supabase
       .channel('scores_viewer')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' },
-        () => {
-          supabase.from('scores').select('*').in('player_id', playerIds).then(({ data }) => {
-            if (data) setScores(data)
-          })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, () => {
+        supabase.from('scores').select('*').in('player_id', playerIds).then(({ data }) => {
+          if (data) setScores(data)
         })
+      })
       .subscribe()
-
     return () => { supabase.removeChannel(channel) }
   }, [state?.round_id, players])
 
-  // HLS playback
+  // HLS playback — only during live mode
   useEffect(() => {
     const video = videoRef.current
     if (!video) return
 
-    let url: string | null = null
+    const shouldPlay = state?.mode === 'live'
 
-    if (state?.mode === 'live' && state.active_mux_input_id) {
-      // Find the operator's Mux playback ID
+    if (!shouldPlay) {
+      stopHls()
+      return
+    }
+
+    // override_hls_url takes priority during live mode (testing)
+    if (state.override_hls_url) {
+      loadHls(state.override_hls_url)
+      return
+    }
+
+    if (state.active_mux_input_id) {
       supabase
         .from('operators')
         .select('mux_playback_id')
@@ -73,27 +76,16 @@ export default function ViewerPage() {
         .then(({ data }) => {
           if (data?.mux_playback_id) loadHls(muxHlsUrl(data.mux_playback_id))
         })
-    } else if (state?.mode === 'hole_media') {
-      const nextHole = holes.find(h => h.hole_number === (state.current_hole ?? 1))
-      if (nextHole?.mux_playback_id) {
-        url = muxHlsUrl(nextHole.mux_playback_id)
-        loadHls(url)
-      }
-    } else {
-      // idle — stop any playing stream
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
-      video.src = ''
+    }
+
+    function stopHls() {
+      if (hlsRef.current) { hlsRef.current.destroy(); hlsRef.current = null }
+      if (video) video.src = ''
     }
 
     function loadHls(src: string) {
       if (!video) return
-      if (hlsRef.current) {
-        hlsRef.current.destroy()
-        hlsRef.current = null
-      }
+      stopHls()
       if (Hls.isSupported()) {
         const hls = new Hls({ lowLatencyMode: true })
         hls.loadSource(src)
@@ -101,18 +93,19 @@ export default function ViewerPage() {
         hls.on(Hls.Events.MANIFEST_PARSED, () => { video.play().catch(() => {}) })
         hlsRef.current = hls
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native HLS (Safari)
         video.src = src
         video.play().catch(() => {})
       }
     }
-  }, [state?.mode, state?.active_mux_input_id, state?.current_hole, holes])
+  }, [state?.mode, state?.override_hls_url, state?.active_mux_input_id])
 
-  const currentHole = holes.find(h => h.hole_number === (state?.current_hole ?? 1))
-  const nextHole = holes.find(h => h.hole_number === (state?.current_hole ?? 1) + 1)
-  const currentPlayer = players.find(p => p.id === state?.current_player_id)
+  // Helpers
+  const holeScoreOf = (p: Player, holeNumber: number): number | null => {
+    const s = scores.find(s => s.player_id === p.id && s.hole_number === holeNumber)
+    return s?.strokes ?? null
+  }
 
-  const playerScore = (p: Player) => {
+  const totalScoreOf = (p: Player) => {
     const playerScores = scores.filter(s => s.player_id === p.id && s.strokes !== null)
     const totalStrokes = playerScores.reduce((acc, s) => acc + (s.strokes ?? 0), 0)
     const totalPar = playerScores.reduce((acc, s) => {
@@ -122,20 +115,23 @@ export default function ViewerPage() {
     return totalStrokes - totalPar
   }
 
-  const leaderboard = [...players].sort((a, b) => playerScore(a) - playerScore(b))
+  const currentHole = holes.find(h => h.hole_number === (state?.current_hole ?? 1))
+  const nextHole = holes.find(h => h.hole_number === (state?.current_hole ?? 1) + 1)
+  const currentPlayer = players.find(p => p.id === state?.current_player_id)
+  const leaderboard = [...players].sort((a, b) => totalScoreOf(a) - totalScoreOf(b))
 
   return (
     <div className="fixed inset-0 bg-black overflow-hidden">
-      {/* Video layer */}
+      {/* Video — only visible during live mode */}
       <video
         ref={videoRef}
-        className="w-full h-full object-cover"
+        className={`w-full h-full object-cover transition-opacity duration-500 ${state?.mode === 'live' ? 'opacity-100' : 'opacity-0'}`}
         muted
         playsInline
         autoPlay
       />
 
-      {/* Idle placeholder */}
+      {/* Idle */}
       {(!state || state.mode === 'idle') && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950">
           <div className="text-8xl mb-6 animate-bounce">🥏</div>
@@ -144,29 +140,29 @@ export default function ViewerPage() {
         </div>
       )}
 
-      {/* Live overlay: player name + score + shot + hole info */}
+      {/* Hole transition — full overlay with card summary */}
+      {state?.mode === 'hole_media' && (
+        <TransitionOverlay
+          completedHole={currentHole ?? null}
+          nextHole={nextHole ?? null}
+          players={leaderboard}
+          holeScoreOf={holeScoreOf}
+          totalScoreOf={totalScoreOf}
+        />
+      )}
+
+      {/* Live overlays */}
       {state?.mode === 'live' && currentHole && currentPlayer && (
         <LiveOverlay
           player={currentPlayer}
-          score={playerScore(currentPlayer)}
+          score={totalScoreOf(currentPlayer)}
           shotCount={state.shot_count}
           hole={currentHole}
         />
       )}
 
-      {/* Leaderboard */}
-      {state?.show_leaderboard && leaderboard.length > 0 && (
-        <LeaderboardOverlay players={leaderboard} scoreOf={playerScore} />
-      )}
-
-      {/* Hole transition overlay */}
-      {state?.mode === 'hole_media' && nextHole && (
-        <TransitionOverlay
-          currentHole={currentHole ?? null}
-          nextHole={nextHole}
-          leaderboard={leaderboard}
-          scoreOf={playerScore}
-        />
+      {state?.show_leaderboard && state.mode === 'live' && leaderboard.length > 0 && (
+        <LeaderboardOverlay players={leaderboard} scoreOf={totalScoreOf} />
       )}
     </div>
   )
