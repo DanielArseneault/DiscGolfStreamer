@@ -6,6 +6,7 @@ import { useVote } from '../../lib/useVote'
 import { supabase } from '../../lib/supabase'
 import type { Player, Hole } from '../../types/database'
 import VoteBanner from './VoteBanner'
+import CameraPreview from './CameraPreview'
 
 export default function OperatorHome() {
   const navigate = useNavigate()
@@ -295,6 +296,15 @@ export default function OperatorHome() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Camera preview */}
+        {state.round_id && (
+          <CameraPreview
+            holeNumber={state.current_hole ?? 1}
+            playerName={players.find(p => p.id === state.current_player_id)?.name}
+            shotCount={state.shot_count ?? 1}
+          />
         )}
 
         {/* Hole flow */}
